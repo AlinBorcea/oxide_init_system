@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-#[path ="setup/linux.rs"]
+#[path ="../init/linux.rs"]
 pub mod linux;
 
 use core::panic::PanicInfo;
