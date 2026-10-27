@@ -10,6 +10,10 @@ libc = {version = "0.2.190", default-features = false}
 name = "oxide"
 path = "src/bin/oxide.rs"
 
+[[bin]]
+name = "daemonizer"
+path = "src/bin/daemonizer.rs"
+
 [profile.dev]
 panic = "abort"     # Required for #![no_std] without custom panic unwinders
 
