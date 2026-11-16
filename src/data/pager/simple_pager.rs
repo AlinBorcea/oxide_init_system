@@ -101,8 +101,8 @@ impl SimplePager {
 
 }
 
-impl Pager for SimplePager {
-    fn delete(&self) {
+impl Drop for SimplePager {
+    fn drop(&mut self) {
         for index in 0..self.page_capacity {
             let page = unsafe { self.pages.add(index as usize).read() };
             if let None = page {
@@ -114,8 +114,10 @@ impl Pager for SimplePager {
         unsafe { libc::free(self.pages as *mut c_void); }
         unsafe { libc::free(self.positions as *mut c_void); }
     }
+}
 
-    fn add_str(&mut self, str: &CStr) -> Option<Handle> {
+impl Pager for SimplePager {
+    fn append(&mut self, str: &CStr) -> Option<Handle> {
         if str.count_bytes() > self.maximum_str_size as usize {
             return None;
         }
@@ -159,7 +161,7 @@ impl Pager for SimplePager {
         }
 
         if self.page_capacity < 255 {
-            return self.add_str(str);
+            return self.append(str);
         }
 
         None

@@ -1,9 +1,13 @@
 use core::ffi::CStr;
 
 pub trait Pager {
-    fn add_str(&mut self, str: &CStr) -> Option<Handle>;
+    fn append(&mut self, str: &CStr) -> Option<Handle>;
     fn find(&self, handle: &Handle) -> &CStr;
-    fn delete(&self);
+}
+
+pub trait SlicePager {
+    fn append(&mut self, str: &[Handle]) -> Option<Handle>;
+    fn find(&self, handle: &Handle) -> &[Handle];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
