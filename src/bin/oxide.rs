@@ -2,9 +2,10 @@
 #![no_main]
 
 #[path ="../init/linux.rs"]
-pub mod linux;
+mod linux;
 
 use core::panic::PanicInfo;
+use core::fmt::Write;
 
 use linux::MountEntry;
 use libc::{c_int};
@@ -12,9 +13,50 @@ use libc::{c_int};
 #[link(name = "c")]
 unsafe extern "C" {}
 
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eh_personality() {}
+
+struct StderrWriter;
+
+impl core::fmt::Write for StderrWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        unsafe {
+            libc::write(2, s.as_ptr() as *const core::ffi::c_void, s.len());
+        }
+        Ok(())
+    }
+}
+
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    unsafe { libc::_exit(101) };
+fn panic(info: &PanicInfo) -> ! {
+    let mut writer = StderrWriter;
+
+    // Print the main panic header
+    let _ = core::write!(writer, "\n[Oxide Panic]: ");
+    
+    // Print the core message string if available
+    if let Some(msg) = info.message().as_str() {
+        let _ = writer.write_str(msg);
+    } else {
+        let _ = core::write!(writer, "{}", info.message());
+    }
+
+    // Print exact source file, line, and column coordinates
+    if let Some(location) = info.location() {
+        let _ = core::write!(
+            writer,
+            "\n  at {}:{}:{}\n",
+            location.file(),
+            location.line(),
+            location.column()
+        );
+    } else {
+        let _ = writer.write_str("\n");
+    }
+
+    unsafe {
+        libc::_exit(101);
+    }
 }
 
 #[unsafe(no_mangle)]
