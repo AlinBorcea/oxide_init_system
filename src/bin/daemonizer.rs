@@ -15,6 +15,10 @@ mod read;
 use read as unit_read;
 use read::DirEntry;
 
+#[path = "../runner/mod.rs"]
+mod runner;
+use runner::run;
+
 use core::panic::PanicInfo;
 use core::fmt::Write;
 use core::ffi::CStr;
@@ -166,12 +170,16 @@ fn run_read_loop() -> c_int {
             };
 
             let name = pager_set.find(&current_identity);
+            let path = pager.find(&zero_unit.service.exec_start_handle);
 
             // Print the ready unit
             unsafe {
-                libc::write(1, b"Zero degree unit: ".as_ptr() as *const c_void, 18);
+                /*libc::write(1, b"Zero degree unit: ".as_ptr() as *const c_void, 18);
                 libc::write(1, name.as_ptr() as *const c_void, name.count_bytes());
-                libc::write(1, b"\n".as_ptr() as *const c_void, 1);
+                libc::write(1, b" : path= ".as_ptr() as *const c_void, 9);
+                libc::write(1, path.as_ptr() as *const c_void, path.count_bytes());
+                libc::write(1, b"\n".as_ptr() as *const c_void, 1);*/
+                _ = run::run_unit(zero_unit, &path);
             }
 
             // MARK AS PROCESSED: Set in_degree to u16::MAX so we never pick it up again
@@ -199,7 +207,7 @@ fn run_read_loop() -> c_int {
                 if depends_on(after_handles, &current_identity) {
                     if target_unit.unit_section.in_degree > 0 && target_unit.unit_section.in_degree != u16::MAX {
                         target_unit.unit_section.in_degree -= 1;
-                        unsafe {
+                        /*unsafe {
                             let id = match target_unit.id {
                                 Some(id) => id,
                                 None => continue
@@ -209,7 +217,7 @@ fn run_read_loop() -> c_int {
 
                             libc::write(1, name.as_ptr() as *const c_void, name.count_bytes());
                             libc::write(1, b" depends\n".as_ptr() as *const c_void, 9);
-                        }
+                        }*/
                     }
                 }
             }
