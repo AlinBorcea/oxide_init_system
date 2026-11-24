@@ -57,8 +57,7 @@ pub fn read_dir_entry(dir_guard: &mut DirGuard, entry: &mut DirEntry) -> c_int {
     0
 }
 
-pub fn read_unit<P: Pager>(filename: &CStr, fd: i32, read_buffer: &mut [u8], pager: &mut P, multi_pager: &mut MultiPager, pager_set: &mut PagerSet) -> Option<Unit> {
-    let mut unit = default_unit();
+pub fn read_unit<P: Pager>(filename: &CStr, fd: i32, read_buffer: &mut [u8], unit: &mut Unit, pager: &mut P, multi_pager: &mut MultiPager, pager_set: &mut PagerSet) -> Option<isize> {
     let mut bytes_read: isize;
     let mut read_offset = 0;
 
@@ -85,7 +84,7 @@ pub fn read_unit<P: Pager>(filename: &CStr, fd: i32, read_buffer: &mut [u8], pag
             let line = &read_buffer[ida..idb];
 
             if !line.is_empty() && line[0] != b'#' && line[0] != b';' {
-                parse_and_apply_service_line(line, &mut unit, pager, multi_pager, pager_set);
+                parse_and_apply_service_line(line, unit, pager, multi_pager, pager_set);
             }
 
             ida = idb + 1;
@@ -94,7 +93,7 @@ pub fn read_unit<P: Pager>(filename: &CStr, fd: i32, read_buffer: &mut [u8], pag
         read_buffer.copy_within(ida..total_valid, 0);
         read_offset = total_valid - ida;
     }
-    Some(unit)
+    Some(0)
 }
 
 fn parse_and_apply_service_line<P: Pager, S: SlicePager>(line: &[u8], unit: &mut Unit, pager: &mut P, multi_pager: &mut S, pager_set: &mut PagerSet) {
@@ -111,24 +110,24 @@ fn parse_and_apply_service_line<P: Pager, S: SlicePager>(line: &[u8], unit: &mut
     let mut buffer = [0u8;256];
     buffer[..value.len()].copy_from_slice(value);
 
-    match key {
-        b"Type" => {
+    match (key, &mut unit.kind) {
+        (b"Type", UnitKind::Service(s)) => {
             match value {
-                b"simple" => unit.service.service_type = ServiceType::Simple,
-                b"forking" => unit.service.service_type = ServiceType::Forking,
-                b"oneshot" => unit.service.service_type = ServiceType::Oneshot,
+                b"simple" => s.service_type = ServiceType::Simple,
+                b"forking" => s.service_type = ServiceType::Forking,
+                b"oneshot" => s.service_type = ServiceType::Oneshot,
                 _ => {}
             }
         }
-        b"Restart" => {
+        (b"Restart", UnitKind::Service(s)) => {
             match value {
-                b"no" => unit.service.restart_policy = RestartPolicy::No,
-                b"always" => unit.service.restart_policy = RestartPolicy::Always,
-                b"on-failure" => unit.service.restart_policy = RestartPolicy::OnFailure,
+                b"no" => s.restart_policy = RestartPolicy::No,
+                b"always" => s.restart_policy = RestartPolicy::Always,
+                b"on-failure" => s.restart_policy = RestartPolicy::OnFailure,
                 _ => {}
             }
         }
-        b"RestartSec" => {
+        (b"RestartSec", UnitKind::Service(s)) => {
             let mut secs: u16 = 0;
             for &b in value {
                 if (b'0'..=b'9').contains(&b) {
@@ -139,9 +138,9 @@ fn parse_and_apply_service_line<P: Pager, S: SlicePager>(line: &[u8], unit: &mut
                     break;
                 }
             }
-            unit.service.restart_sec = secs;
+            s.restart_sec = secs;
         }
-        b"User" => {
+        (b"User", UnitKind::Service(s)) => {
             // 1. Try parsing as a raw numeric UID first (e.g., User=1000)
             let mut uid_val: u32 = 0;
             let mut is_numeric = true;
@@ -155,7 +154,7 @@ fn parse_and_apply_service_line<P: Pager, S: SlicePager>(line: &[u8], unit: &mut
             }
 
             if is_numeric && !value.is_empty() {
-                unit.service.uid = uid_val;
+                s.uid = uid_val;
             } else {
                  // 2. If it's a username string (e.g., User=www-data), resolve via libc::getpwnam
                 if value.len() < 256 {
@@ -167,17 +166,17 @@ fn parse_and_apply_service_line<P: Pager, S: SlicePager>(line: &[u8], unit: &mut
                         unsafe {
                             let pwd = libc::getpwnam(cstr.as_ptr());
                             if !pwd.is_null() {
-                                unit.service.uid = (*pwd).pw_uid;
+                                s.uid = (*pwd).pw_uid;
                             } else {
                                 // Fallback: Default to root (0) or handle error appropriately
-                                unit.service.uid = 0;
+                                s.uid = 0;
                             }
                         }
                     }
                 }
             }
         }
-        b"Group" => {
+        (b"Group", UnitKind::Service(s)) => {
             let mut gid_val: u32 = 0;
             let mut is_numeric = true;
             for &b in value {
@@ -190,7 +189,7 @@ fn parse_and_apply_service_line<P: Pager, S: SlicePager>(line: &[u8], unit: &mut
             }
 
             if is_numeric && !value.is_empty() {
-                unit.service.gid = gid_val;
+                s.gid = gid_val;
             } else {
                 // 2. If it's a group name string (e.g., Group=www-data), resolve via libc::getgrnam
                 if value.len() < 256 {
@@ -202,24 +201,24 @@ fn parse_and_apply_service_line<P: Pager, S: SlicePager>(line: &[u8], unit: &mut
                         unsafe {
                             let grp = libc::getgrnam(cstr.as_ptr());
                             if !grp.is_null() {
-                                unit.service.gid = (*grp).gr_gid;
+                                s.gid = (*grp).gr_gid;
                             } else {
                                 // Fallback: Default to root (0) or handle error appropriately
-                                unit.service.gid = 0;
+                                s.gid = 0;
                             }
                         }
                     }
                 }
             }
         }
-        b"ExecStart" => {
+        (b"ExecStart", UnitKind::Service(s)) => {
             if let Ok(cstr) = CStr::from_bytes_with_nul(&buffer[..=value.len()]) {
                     if let Some(handle) = pager.append(cstr) {
-                        unit.service.exec_start_handle = handle;
+                        s.exec_start_handle = handle;
                     }
             }    
         }
-        b"WorkingDirectory" => {
+        (b"WorkingDirectory", UnitKind::Service(s)) => {
             // Ensure the value fits within our temporary stack buffer (+1 for null terminator)
             if value.len() < 256 {
                 let mut stack_buf = [0u8; 256];
@@ -229,32 +228,32 @@ fn parse_and_apply_service_line<P: Pager, S: SlicePager>(line: &[u8], unit: &mut
 
                 if let Ok(cstr) = core::ffi::CStr::from_bytes_with_nul(&stack_buf[..=value.len()]) {
                     if let Some(handle) = pager.append(cstr) {
-                        unit.service.working_dir_handle = Some(handle);
+                        s.working_dir_handle = Some(handle);
                     }
                 }
             }
         }
-        b"RemainAfterExit" => {
+        (b"RemainAfterExit", UnitKind::Service(s)) => {
             let is_true = matches!(value, b"true" | b"yes" | b"1" | b"on");
             let is_false = matches!(value, b"false" | b"no" | b"0" | b"off");
 
             if is_true {
-                unit.service.flags |= FLAG_REMAIN_AFTER_EXIT;
+                s.flags |= FLAG_REMAIN_AFTER_EXIT;
             } else if is_false {
-                unit.service.flags &= !FLAG_REMAIN_AFTER_EXIT;
+                s.flags &= !FLAG_REMAIN_AFTER_EXIT;
             }
         }
-        b"PrivateTmp" => {
+        (b"PrivateTmp", UnitKind::Service(s)) => {
             let is_true = matches!(value, b"true" | b"yes" | b"1" | b"on");
             let is_false = matches!(value, b"false" | b"no" | b"0" | b"off");
 
             if is_true {
-                unit.service.flags |= FLAG_PRIVATE_TMP;
+                s.flags |= FLAG_PRIVATE_TMP;
             } else if is_false {
-                unit.service.flags &= !FLAG_PRIVATE_TMP;
+                s.flags &= !FLAG_PRIVATE_TMP;
             }
         }
-        b"After" | b"Before" | b"Wants" | b"Requires" => {
+        (b"After" | b"Before" | b"Wants" | b"Requires", _) => {
         let mut handles = [Handle::new(0); 32]; // Max 32 items per line buffer
         let mut count = 0;
             

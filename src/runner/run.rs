@@ -10,7 +10,11 @@ pub fn run_unit(unit: &Unit, path: &CStr) -> Result<i32, &'static str> {
     let argv: [*const c_char; 2] = [arg0, core::ptr::null()];
     let envp: [*const c_char; 1] = [core::ptr::null()];
 
-    match unit.service.service_type {
+    let UnitKind::Service(s) = &unit.kind else {
+        return Err("Only Services Allowed");
+    };
+
+    match s.service_type {
         ServiceType::Simple => {
             let pid = unsafe { libc::fork() };
             if pid < 0 {
