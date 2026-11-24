@@ -8,12 +8,9 @@ pub struct Unit {
     pub id: Option<Handle>,
     pub unit_section: UnitSection,
     pub install_section: Option<InstallSection>,
-    //pub kind: UnitKind,
-    pub service: ServiceSection,
+    pub kind: UnitKind,
+    //pub service: ServiceSection,
 }
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct UnitId(pub u16);
 
 pub struct UnitSection {
     //pub description_handle: Handle,
@@ -62,7 +59,7 @@ pub enum RestartPolicy {
     OnFailure = 2,
 }
 
-pub fn default_unit() -> Unit {
+pub fn default_service_unit() -> Unit {
     Unit {
         id: None,
         install_section: None,
@@ -73,7 +70,7 @@ pub fn default_unit() -> Unit {
             wants_handle: None, 
             in_degree: 0 
         },
-        service: ServiceSection {
+        kind: UnitKind::Service(ServiceSection {
             exec_start_handle: Handle::new(0),
             working_dir_handle: None,
             service_type: ServiceType::Simple,
@@ -82,6 +79,21 @@ pub fn default_unit() -> Unit {
             uid: 0,
             gid: 0,
             flags: 0,
+        }),
+    }
+}
+
+pub fn default_target_unit() -> Unit {
+    Unit {
+        id: None,
+        install_section: None,
+        unit_section: UnitSection { 
+            after_handle: None, 
+            requires_handle: None, 
+            before_handle: None, 
+            wants_handle: None, 
+            in_degree: 0 
         },
+        kind: UnitKind::Target(TargetSection {}),
     }
 }
