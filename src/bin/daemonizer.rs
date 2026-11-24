@@ -25,6 +25,8 @@ use core::ffi::CStr;
 
 use libc::{c_int, c_void};
 
+use crate::data::unit_file;
+
 #[link(name = "c")]
 unsafe extern "C" {}
 
@@ -90,7 +92,9 @@ fn run_read_loop() -> c_int {
 
     let mut entry = DirEntry { filename: [0;256], written: 0};
     let mut dir_guard = dir_guard_opt.unwrap();
-    let ext = b".txt";
+    let ext_service = b".service";
+    let ext_target = b".target";
+    let ext_txt = b".txt";
 
     let pager_opt = SimplePager::new(1, 1024, 512, 20, 5, 1);
     let mut pager = pager_opt.unwrap();
@@ -102,11 +106,11 @@ fn run_read_loop() -> c_int {
     let mut pager_set = pager_set_opt.unwrap();
 
     let unit_size = core::mem::size_of::<Option<Unit>>();
-    let units = unsafe { libc::malloc(unit_size * 1000) as *mut Option<Unit> };
-    let unit_slice = unsafe { core::slice::from_raw_parts_mut(units, 1000) };
+    let units = unsafe { libc::malloc(unit_size * 500) as *mut Option<Unit> };
+    let unit_slice = unsafe { core::slice::from_raw_parts_mut(units, 500) };
     let mut unit_length = 0;
 
-    loop {
+    loop { 
         let code = unit_read::read_dir_entry(&mut dir_guard, &mut entry);
         if code != 0 {
             break;
@@ -120,11 +124,14 @@ fn run_read_loop() -> c_int {
         let bytes = cstr.to_bytes();
 
         // Guard: Filename must be strictly longer than the extension itself
-        if bytes.len() <= ext.len() {
-            continue;
-        }
+        //if bytes.len() <= ext.len() {
+          //  continue;
+        //}
 
-        if !bytes.ends_with(ext) {
+        let allowed = bytes.ends_with(ext_txt) || 
+        bytes.ends_with(ext_service) || bytes.ends_with(ext_target);
+
+        if !allowed {
             continue;
         }
         
@@ -135,8 +142,15 @@ fn run_read_loop() -> c_int {
             Err(_) => continue,
         };
 
-        match run_parse_unit(path, &mut pager, &mut multi_pager, &mut pager_set) {
-            Some(unit) => { 
+        let mut unit = {
+            if bytes.ends_with(ext_service) { unit_file::default_service_unit() }
+            else if bytes.ends_with(ext_target) { unit_file::default_target_unit() }
+            else if bytes.ends_with(ext_txt) { unit_file::default_service_unit() }
+            else { continue; }
+        };
+        
+        match run_parse_unit(&mut unit, path, &mut pager, &mut multi_pager, &mut pager_set) {
+            Some(_) => { 
                 unit_slice[unit_length] = Some(unit); 
                 unit_length += 1; 
             },
@@ -154,7 +168,7 @@ fn run_read_loop() -> c_int {
 
         // 1. Find a unit with in_degree == 0 that hasn't been processed yet
         for i in 0..unit_length {
-            let zero_unit = match &unit_slice[i] {
+            let zero_unit = match &mut unit_slice[i] {
                 Some(u) => u,
                 None => continue,
             };
@@ -169,17 +183,15 @@ fn run_read_loop() -> c_int {
                 None => continue
             };
 
-            let name = pager_set.find(&current_identity);
-            let path = pager.find(&zero_unit.service.exec_start_handle);
+            //let name = pager_set.find(&current_identity);
 
-            // Print the ready unit
-            unsafe {
-                /*libc::write(1, b"Zero degree unit: ".as_ptr() as *const c_void, 18);
-                libc::write(1, name.as_ptr() as *const c_void, name.count_bytes());
-                libc::write(1, b" : path= ".as_ptr() as *const c_void, 9);
-                libc::write(1, path.as_ptr() as *const c_void, path.count_bytes());
-                libc::write(1, b"\n".as_ptr() as *const c_void, 1);*/
-                _ = run::run_unit(zero_unit, &path);
+            match &mut zero_unit.kind {
+                UnitKind::Service(s) => {
+                    let path = pager.find(&s.exec_start_handle);
+                    _ = run::run_unit(zero_unit, &path);
+                },
+                UnitKind::Target(t) => {},
+                _ => { continue; }
             }
 
             // MARK AS PROCESSED: Set in_degree to u16::MAX so we never pick it up again
@@ -238,15 +250,14 @@ fn run_read_loop() -> c_int {
     0
 }
 
-fn run_parse_unit(path: &CStr, pager: &mut SimplePager, multi_pager: &mut MultiPager, pager_set: &mut PagerSet) -> Option<Unit> {
+fn run_parse_unit(unit: &mut Unit, path: &CStr, pager: &mut SimplePager, multi_pager: &mut MultiPager, pager_set: &mut PagerSet) -> Option<isize> {
     let fd = unsafe { libc::open(path.as_ptr(), libc::O_RDONLY) };
     if fd < 0 {
         return None;
     }
 
     let mut buffer = [0u8;512];
-    let unit = unit_read::read_unit(path, fd, &mut buffer, pager, multi_pager, pager_set);
-    unit
+    unit_read::read_unit(path, fd, &mut buffer, unit, pager, multi_pager, pager_set)
 }
 
 fn depends_on(after_handles: &[Handle], identity: &Handle) -> bool {
