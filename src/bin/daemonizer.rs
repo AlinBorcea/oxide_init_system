@@ -79,12 +79,38 @@ fn panic(info: &PanicInfo) -> ! {
 #[unsafe(no_mangle)]
 pub extern "C" fn main(_argc: c_int, _argv: *const *const u8) -> c_int {
     //let pager = SimplePager::new();
-    run_read_loop()
+    run_read_loop();
+
+    unsafe {
+    let pid = libc::fork();
+    if pid == 0 {
+        let sh_path = c"/bin/bash".as_ptr();
+        let arg0 = c"/bin/bash".as_ptr();
+        let arg1 = c"-i".as_ptr();
+
+        let args = [arg0, arg1, core::ptr::null()];
+        let env = [
+            c"HOME=/root".as_ptr(),
+            c"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".as_ptr(),
+            c"TERM=linux".as_ptr(),
+            core::ptr::null(),
+        ];
+
+        libc::execve(sh_path, args.as_ptr(), env.as_ptr());
+        libc::_exit(127);
+    } else if pid > 0 {
+        let mut status: i32 = 0;
+        libc::waitpid(pid, &mut status, 0);
+    }
+}
+
+    0
 }
 
 fn run_read_loop() -> c_int {
-    let path = c"/usr/lib/systemd/system";
-    let dir_guard_opt = unit_read::open_dir(path);
+    let lib_path = c"/usr/lib/oxide/system";
+    let lib_path_array = b"/usr/lib/oxide/system/";
+    let dir_guard_opt = unit_read::open_dir(lib_path);
     if let None = dir_guard_opt {
         unsafe { libc::write(1, b"Could not open dir\n".as_ptr() as *mut c_void, 19); }
         return 1;
@@ -153,9 +179,15 @@ fn run_read_loop() -> c_int {
             continue;
         }
         
-        let valid_slice = &entry.filename[..entry.written as usize];
+        let mut abs_path = [0u8;512];
 
-        let path = match core::ffi::CStr::from_bytes_with_nul(valid_slice) {
+        abs_path[..lib_path_array.len()].copy_from_slice(lib_path_array);
+        abs_path[lib_path_array.len()..lib_path_array.len()+entry.written as usize -1]
+        .copy_from_slice(&entry.filename[..entry.written as usize-1]);
+        //let valid_slice = &entry.filename[..entry.written as usize];
+
+        let path = match core::ffi::CStr::from_bytes_until_nul(
+            &abs_path[..lib_path_array.len() + entry.written as usize + 1]) {
             Ok(s) => s,
             Err(_) => continue,
         };
