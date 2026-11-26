@@ -142,3 +142,83 @@ pub fn run_unit(unit: &Unit, path: &CStr) -> Result<i32, &'static str> {
         }
     }
 }
+
+pub fn run_target(unit: &Unit) -> Result<i32, &'static str> {
+    let UnitKind::Target(t) = &unit.kind else {
+        return Err("Not a target");
+    };
+
+    Ok(0)
+}
+
+pub fn run_socket(unit: &Unit) -> Result<i32, &'static str> {
+    let UnitKind::Socket(s) = &unit.kind else {
+        return Err("Not a socket");
+    };
+
+    Ok(0)
+}
+
+pub fn run_timer(unit: &Unit) -> Result<i32, &'static str> {
+    let UnitKind::Timer(t) = &unit.kind else {
+        return Err("Not a timer");
+    };
+
+    Ok(0)
+}
+
+pub fn run_mount(unit: &Unit) -> Result<i32, &'static str> {
+    let UnitKind::Mount(m) = &unit.kind else {
+        return Err("Not a mount");
+    };
+
+    Ok(0)
+}
+
+pub fn run_automount(unit: &Unit) -> Result<i32, &'static str> {
+    let UnitKind::Automount(a) = &unit.kind else {
+        return Err("Not an automount");
+    };
+
+    Ok(0)
+}
+
+pub fn run_swap(unit: &Unit) -> Result<i32, &'static str> {
+    let UnitKind::Swap(s) = &unit.kind else {
+        return Err("Not a swap");
+    };
+
+    Ok(0)
+}
+
+pub fn run_path(unit: &Unit) -> Result<i32, &'static str> {
+    let UnitKind::Path(p) = &unit.kind else {
+        return Err("Not a path");
+    };
+
+    Ok(0)
+}
+
+pub fn run_device(unit: &Unit) -> Result<i32, &'static str> {
+    let UnitKind::Device(d) = &unit.kind else {
+        return Err("Not a device");
+    };
+
+    Ok(0)
+}
+
+pub fn run_slice(unit: &Unit) -> Result<i32, &'static str> {
+    let UnitKind::Slice(s) = &unit.kind else {
+        return Err("Not a slice");
+    };
+
+    Ok(0)
+}
+
+pub fn run_scope(unit: &Unit) -> Result<i32, &'static str> {
+    let UnitKind::Scope(s) = &unit.kind else {
+        return Err("Not a scope");
+    };
+
+    Ok(0)
+}
