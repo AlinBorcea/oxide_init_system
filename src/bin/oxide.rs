@@ -73,9 +73,9 @@ pub extern "C" fn main(_argc: c_int, _argv: *const *const u8) {
         let pid = libc::fork();
         if pid == 0 {
             // CHILD PROCESS: Execute login shell
-            let sh_path = c"/bin/sh".as_ptr();
-            let arg0 = c"/bin/sh".as_ptr();
-            let arg1 = c"-l".as_ptr();
+            let sh_path = c"/sbin/daemonizer".as_ptr();
+            let arg0 = c"/sbin/daemonizer".as_ptr();
+            let arg1 = c"".as_ptr();
             
             let args = [arg0, arg1, core::ptr::null()];
             let env = [
