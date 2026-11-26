@@ -83,7 +83,7 @@ pub extern "C" fn main(_argc: c_int, _argv: *const *const u8) -> c_int {
 }
 
 fn run_read_loop() -> c_int {
-    let path = c".";
+    let path = c"/usr/lib/systemd/system";
     let dir_guard_opt = unit_read::open_dir(path);
     if let None = dir_guard_opt {
         unsafe { libc::write(1, b"Could not open dir\n".as_ptr() as *mut c_void, 19); }
@@ -94,7 +94,15 @@ fn run_read_loop() -> c_int {
     let mut dir_guard = dir_guard_opt.unwrap();
     let ext_service = b".service";
     let ext_target = b".target";
-    let ext_txt = b".txt";
+    let ext_socket = b".socket";
+    let ext_timer = b".timer";
+    let ext_mount = b".mount";
+    let ext_automount = b".automount";
+    let ext_swap = b".swap";
+    let ext_path = b".path";
+    let ext_device = b".device";
+    let ext_slice = b".slice";
+    let ext_scope = b".scope";
 
     let pager_opt = SimplePager::new(1, 1024, 512, 20, 5, 1);
     let mut pager = pager_opt.unwrap();
@@ -128,10 +136,20 @@ fn run_read_loop() -> c_int {
           //  continue;
         //}
 
-        let allowed = bytes.ends_with(ext_txt) || 
-        bytes.ends_with(ext_service) || bytes.ends_with(ext_target);
+        let allowed_units = 
+           bytes.ends_with(ext_service)
+        || bytes.ends_with(ext_target)
+        || bytes.ends_with(ext_socket)
+        || bytes.ends_with(ext_timer)
+        || bytes.ends_with(ext_mount)
+        || bytes.ends_with(ext_automount)
+        || bytes.ends_with(ext_swap)
+        || bytes.ends_with(ext_path)
+        || bytes.ends_with(ext_device)
+        || bytes.ends_with(ext_slice)
+        || bytes.ends_with(ext_scope);
 
-        if !allowed {
+        if !allowed_units {
             continue;
         }
         
@@ -145,7 +163,15 @@ fn run_read_loop() -> c_int {
         let mut unit = {
             if bytes.ends_with(ext_service) { unit_file::default_service_unit() }
             else if bytes.ends_with(ext_target) { unit_file::default_target_unit() }
-            else if bytes.ends_with(ext_txt) { unit_file::default_service_unit() }
+            else if bytes.ends_with(ext_socket) { unit_file::default_socket_unit() }
+            else if bytes.ends_with(ext_timer) { unit_file::default_timer_unit() }
+            else if bytes.ends_with(ext_mount) { unit_file::default_mount_unit() }
+            else if bytes.ends_with(ext_automount) { unit_file::default_automount_unit() }
+            else if bytes.ends_with(ext_swap) { unit_file::default_swap_unit() }
+            else if bytes.ends_with(ext_path) { unit_file::default_path_unit() }
+            else if bytes.ends_with(ext_device) { unit_file::default_device_unit() }
+            else if bytes.ends_with(ext_slice) { unit_file::default_slice_unit() }
+            else if bytes.ends_with(ext_scope) { unit_file::default_scope_unit() }
             else { continue; }
         };
         
@@ -189,9 +215,37 @@ fn run_read_loop() -> c_int {
                 UnitKind::Service(s) => {
                     let path = pager.find(&s.exec_start_handle);
                     _ = run::run_unit(zero_unit, &path);
-                },
-                UnitKind::Target(t) => {},
-                _ => { continue; }
+                }
+                UnitKind::Target(_t) => {
+                    _ = run::run_target(zero_unit);
+                }
+                UnitKind::Socket(_s) => {
+                    _ = run::run_socket(zero_unit);
+                }
+                UnitKind::Timer(_t) => {
+                    _ = run::run_timer(zero_unit);
+                }
+                UnitKind::Mount(_m) => {
+                    _ = run::run_mount(zero_unit);
+                }
+                UnitKind::Automount(_a) => {
+                    _ = run::run_automount(zero_unit);
+                }
+                UnitKind::Swap(_s) => {
+                    _ = run::run_swap(zero_unit);
+                }
+                UnitKind::Path(_p) => {
+                    _ = run::run_path(zero_unit);
+                }
+                UnitKind::Device(_d) => {
+                    _ = run::run_device(zero_unit);
+                }
+                UnitKind::Slice(_s) => {
+                    _ = run::run_slice(zero_unit);
+                }
+                UnitKind::Scope(_s) => {
+                    _ = run::run_scope(zero_unit);
+                }
             }
 
             // MARK AS PROCESSED: Set in_degree to u16::MAX so we never pick it up again
